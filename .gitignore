@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Never commit credentials or local env
+.env
+*.pem
+.aws/
+
+# Local docs corpus (public PDFs/text — keep the repo light; list sources in README instead)
+docs/*
+!docs/README.md
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
