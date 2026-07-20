@@ -1,11 +1,9 @@
 # docs/
 
-Put your corpus here as `.txt` files (used by `rag_raw.py`).
+Text corpus for `rag_raw.py` (the same content, saved as PDFs, feeds the S3
+bucket behind the Bedrock Knowledge Base for `ask.py` / `app.py`).
 
-Sources used (public, no PHI):
-- CMS coverage guidelines — https://www.cms.gov
-- Public payer eligibility / prior-authorization manuals
-- HHS HIPAA summaries — https://www.hhs.gov/hipaa
-
-(The same PDFs go to the S3 bucket that feeds the Bedrock Knowledge Base
-for `ask.py` / `app.py`.)
+Sources (public, no PHI — adapted from Wikipedia, CC BY-SA):
+- Prior authorization — https://en.wikipedia.org/wiki/Prior_authorization
+- Explanation of benefits — https://en.wikipedia.org/wiki/Explanation_of_benefits
+- Medical billing / RCM — https://en.wikipedia.org/wiki/Medical_billing

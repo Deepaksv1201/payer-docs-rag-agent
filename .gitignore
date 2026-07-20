@@ -13,6 +13,10 @@ venv/
 docs/*
 !docs/README.md
 
+# Local embeddings cache / vector store
+docs_index.json
+chroma_db/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

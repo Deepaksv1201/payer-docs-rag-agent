@@ -1,25 +1,29 @@
-"""RAG without frameworks — chunking, embedding, retrieval and grounded
-generation using the Bedrock runtime API directly.
+"""RAG from scratch — no frameworks, no vector database, no cloud.
 
-Usage: python rag_raw.py "your question"   (reads docs/*.txt)
+The full pipeline in one readable file:
+    chunk -> embed -> cosine-similarity retrieval -> grounded generation
+
+Usage: python rag_raw.py "your question"   (reads docs/*.txt, needs Ollama running)
 """
-import json
+import os
 import pathlib
 import sys
 
-import boto3
 import numpy as np
+import ollama
+from fastembed import TextEmbedding
 
-from config import AWS_REGION, CHAT_MODEL_ID, EMBED_MODEL_ID
+EMBED_MODEL = TextEmbedding("BAAI/bge-small-en-v1.5")
+GEN_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
 
-br = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+PROMPT = """Answer the question using ONLY the context below. If the answer
+is not in the context, say "I don't have that information in the provided
+documents."
 
+Context:
+{context}
 
-def embed(text: str) -> np.ndarray:
-    resp = br.invoke_model(
-        modelId=EMBED_MODEL_ID, body=json.dumps({"inputText": text})
-    )
-    return np.array(json.loads(resp["body"].read())["embedding"])
+Question: {question}"""
 
 
 def chunk(text: str, max_chars: int = 1500) -> list[str]:
@@ -33,24 +37,18 @@ def chunk(text: str, max_chars: int = 1500) -> list[str]:
     return out + ([cur] if cur else [])
 
 
+def embed(text: str) -> np.ndarray:
+    return np.array(next(iter(EMBED_MODEL.embed([text]))))
+
+
 def cosine(a: np.ndarray, b: np.ndarray) -> float:
     return float(a @ b) / (float(np.linalg.norm(a)) * float(np.linalg.norm(b)))
-
-
-PROMPT = """Answer the question using ONLY the context below. If the answer
-is not in the context, say "I don't have that information in the provided
-documents."
-
-Context:
-{context}
-
-Question: {question}"""
 
 
 if __name__ == "__main__":
     question = sys.argv[1]
 
-    # index
+    # index (in a real system this happens once, offline — see ingest.py)
     chunks: list[str] = []
     for f in pathlib.Path("docs").glob("*.txt"):
         chunks += chunk(f.read_text(encoding="utf-8"))
@@ -65,15 +63,12 @@ if __name__ == "__main__":
     context = "\n\n".join(chunks[i] for i in top)
 
     # generate
-    resp = br.converse(
-        modelId=CHAT_MODEL_ID,
-        messages=[{
-            "role": "user",
-            "content": [{"text": PROMPT.format(context=context, question=question)}],
-        }],
+    resp = ollama.chat(
+        model=GEN_MODEL,
+        messages=[{"role": "user", "content": PROMPT.format(context=context, question=question)}],
     )
-    print(resp["output"]["message"]["content"][0]["text"])
+    print(resp["message"]["content"])
 
-    print("\n--- sources ---")
+    print("\n--- sources (cosine similarity) ---")
     for i in top:
         print(f"[{scores[i]:.3f}]", chunks[i][:120].replace("\n", " "))
