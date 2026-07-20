@@ -1,16 +1,18 @@
 """Inspect retrieval in isolation — which chunks does vector search return?
 
+Works against whichever backend RETRIEVAL_BACKEND selects (chroma | kb).
+
 Usage: python retrieve_test.py "your question"
 """
 import sys
 
-from ask import retriever
+from retrieval import get_retrieval
 
 if __name__ == "__main__":
     question = sys.argv[1]
-    docs = retriever.invoke(question)
-    print(f"{len(docs)} chunks retrieved for: {question!r}\n")
-    for i, d in enumerate(docs, 1):
-        print(f"--- chunk {i} ---")
-        print(d.page_content[:400])
-        print("metadata:", d.metadata, "\n")
+    chunks = get_retrieval().search(question)
+    print(f"{len(chunks)} chunks retrieved for: {question!r}\n")
+    for i, c in enumerate(chunks, 1):
+        score = f" · score {c.score:.3f}" if c.score is not None else ""
+        print(f"--- chunk {i} · {c.source}{score} ---")
+        print(c.text[:400], "\n")
