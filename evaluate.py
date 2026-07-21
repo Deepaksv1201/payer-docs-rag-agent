@@ -1,12 +1,9 @@
-"""Offline quality evaluation for the RAG system.
+"""Score the RAG system on a fixed question set (eval_set.json).
 
-Runs a fixed question set and scores retrieval and generation separately —
-because they fail differently and are fixed differently:
-    retrieval hit-rate  did the expected source appear in the retrieved chunks?
-    faithfulness        did the answer contain the required facts?
-    refusal probe       does an out-of-corpus question get refused, not answered?
-
-Run:  python evaluate.py
+Measures retrieval and generation separately: retrieval hit-rate (was the
+expected source retrieved), faithfulness (did the answer contain required
+facts), a refusal probe (out-of-corpus questions must be refused), and latency.
+Run: python evaluate.py
 """
 import json
 import pathlib
@@ -14,8 +11,7 @@ import time
 
 from app.service import PROMPT, RagService
 
-# A question the corpus cannot answer — verifies the grounding refusal holds.
-REFUSAL_PROBE = "What is the capital of France?"
+REFUSAL_PROBE = "What is the capital of France?"  # not in any corpus
 
 
 def run():
@@ -42,12 +38,11 @@ def run():
         faithful += ok
         rows.append((c["question"][:48], hit, ok))
 
-    refusal = service.answer(REFUSAL_PROBE)
-    refused = "don't have that information" in refusal.text.lower()
+    refused = "don't have that information" in service.answer(REFUSAL_PROBE).text.lower()
 
     n = len(cases)
     p50 = sorted(latencies)[len(latencies) // 2]
-    lines = [
+    report = "\n".join([
         f"# Evaluation ({service.provider.name})\n",
         f"- Retrieval hit-rate: {hits}/{n} ({hits / n * 100:.0f}%)",
         f"- Answer faithfulness: {faithful}/{n} ({faithful / n * 100:.0f}%)",
@@ -56,8 +51,7 @@ def run():
         "| Question | Right source | Key facts |",
         "|---|:---:|:---:|",
         *[f"| {q} | {'✅' if h else '❌'} | {'✅' if o else '❌'} |" for q, h, o in rows],
-    ]
-    report = "\n".join(lines)
+    ])
     print(report)
     pathlib.Path("eval_results.md").write_text(report, encoding="utf-8")
 

@@ -1,16 +1,11 @@
-"""Offline ingestion: turn a folder of documents into a searchable vector store.
-
-Reads PDFs and text files, splits them into overlapping chunks, and writes them
-into Chroma (which embeds each chunk on insert). Runs as a batch step whenever
-the corpus changes — separate from the query path, which only reads the store.
-"""
+"""Build the vector store from a document folder (PDF/TXT). Run when docs change."""
 import os
 import pathlib
 import sys
 
 
 def read_document(path: pathlib.Path) -> str:
-    """Extract plain text from a PDF or text file."""
+    """Extract text from a PDF or text file."""
     if path.suffix.lower() == ".pdf":
         from pypdf import PdfReader
 
@@ -20,8 +15,8 @@ def read_document(path: pathlib.Path) -> str:
 
 
 def chunk(text: str, max_chars: int = 1200, overlap: int = 150) -> list[str]:
-    """Pack paragraphs into chunks up to a size limit, carrying a small overlap
-    so a sentence split at a boundary survives intact in the next chunk."""
+    """Pack paragraphs into size-limited chunks, overlapping so boundary
+    sentences survive in a neighbour."""
     paras = [p.strip() for p in text.split("\n\n") if p.strip()]
     out, cur = [], ""
     for para in paras:
@@ -35,7 +30,7 @@ def chunk(text: str, max_chars: int = 1200, overlap: int = 150) -> list[str]:
 
 
 def build_store() -> int:
-    """Rebuild the vector store from every document in the corpus folder."""
+    """Rebuild the Chroma store from every document in the corpus folder."""
     docs_dir = pathlib.Path(os.environ.get("DOCS_DIR", "docs"))
     files = [p for p in docs_dir.glob("*") if p.suffix.lower() in (".txt", ".pdf")]
     if not files:
@@ -45,7 +40,7 @@ def build_store() -> int:
 
     client = chromadb.PersistentClient(path="chroma_db")
     try:
-        client.delete_collection("payer_docs")  # full rebuild — replace, not append
+        client.delete_collection("payer_docs")  # full rebuild, not append
     except Exception:
         pass
     collection = client.get_or_create_collection(

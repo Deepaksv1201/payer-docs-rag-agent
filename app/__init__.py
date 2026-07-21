@@ -1,10 +1,6 @@
-"""DocQ — a document-intelligence RAG application.
+"""DocQ — document-intelligence RAG, organized in layers.
 
-Layered so each concern is isolated:
-    api / streamlit   presentation (thin, no business logic)
-    service           orchestration of the RAG flow
-    retrieval         vector-search backends (Chroma / Bedrock KB)
-    providers         text-generation backends (Ollama / Bedrock)
-    ingestion         builds the vector store from a document folder
-    config            environment-driven settings
+api / streamlit : presentation      service : RAG orchestration
+retrieval       : vector search     providers : text generation
+ingestion       : builds the store  config : settings
 """

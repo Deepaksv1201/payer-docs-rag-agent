@@ -1,17 +1,10 @@
-"""Text-generation backends behind a single interface.
-
-Each provider knows only how to turn a prompt into text. The rest of the app
-depends on the LLMProvider interface, so a new model source is one subclass
-and switching between them is a configuration value.
-"""
+"""Text-generation backends behind one interface, selected by config."""
 from abc import ABC, abstractmethod
 
 from app.config import AWS_REGION, CHAT_MODEL_ID, LLM_PROVIDER, OLLAMA_MODEL
 
 
 class LLMProvider(ABC):
-    """Contract every generation backend implements."""
-
     name: str
 
     @abstractmethod
@@ -19,7 +12,7 @@ class LLMProvider(ABC):
 
 
 class OllamaProvider(LLMProvider):
-    """Generation from a model running locally via Ollama — free and offline."""
+    """Local generation via Ollama."""
 
     name = "ollama"
 
@@ -37,7 +30,7 @@ class OllamaProvider(LLMProvider):
 
 
 class BedrockProvider(LLMProvider):
-    """Generation from Amazon Bedrock (Nova / Claude) via the Converse API."""
+    """Generation via Amazon Bedrock (Converse API)."""
 
     name = "bedrock"
 
@@ -59,7 +52,7 @@ _PROVIDERS = {"ollama": OllamaProvider, "bedrock": BedrockProvider}
 
 
 def get_provider(name: str | None = None) -> LLMProvider:
-    """Return the generation backend named by the argument or configuration."""
+    """Instantiate the configured (or named) generation backend."""
     name = name or LLM_PROVIDER
     if name not in _PROVIDERS:
         raise ValueError(f"Unknown provider {name!r}. Options: {list(_PROVIDERS)}")
