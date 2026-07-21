@@ -1,87 +1,122 @@
-# Payer Docs RAG Agent
+# DocQ — Document Intelligence RAG
 
-Grounded Q&A over healthcare payer documentation — answers come only from the
-document corpus, with sources and similarity scores shown for every response.
+Grounded question-answering over an arbitrary document corpus. Answers are
+constrained to the supplied documents, returned with source citations and
+similarity scores, and refused when the corpus does not contain the answer.
 
-Three-tier design with **pluggable backends**: swap the LLM provider or the
-vector store with an environment variable, zero code changes.
+The corpus is domain-independent: healthcare, telecom, legal, or any set of
+PDFs/text placed in `docs/`. The LLM provider and vector store are each
+selected by configuration, so the same code runs fully local (Ollama + Chroma)
+or on AWS (Bedrock + Knowledge Base).
 
 ## Architecture
 
+Layered by responsibility — presentation is thin, business logic is isolated,
+and the external integrations sit behind interfaces:
+
 ```
-                Streamlit chat UI  (app.py, :8501)
-                        │ HTTP
-                FastAPI backend    (api.py, :8000)
-                        │
-        ┌───────────────┴────────────────┐
-   Retrieval factory              LLM provider factory
-   (retrieval.py)                 (providers.py)
-        │                                │
-  ┌─────┴──────┐                  ┌──────┴──────┐
-  │ Chroma     │ local            │ Ollama      │ local
-  │ Bedrock KB │ AWS              │ Bedrock     │ AWS
-  └────────────┘                  └─────────────┘
+   streamlit_app.py         presentation — chat UI
+        │ HTTP
+   app/api.py               presentation — FastAPI routes (/ask, /health)
+        │
+   app/service.py           business logic — retrieve → ground → generate
+        │
+   ┌────┴─────────────┐
+   app/retrieval.py    app/providers.py     integrations
+   Chroma │ Bedrock KB  Ollama │ Bedrock
 ```
 
-| File | Purpose |
-|---|---|
-| `rag_raw.py` | The whole idea in one file — chunking, embeddings, cosine retrieval, grounded generation. No frameworks, no vector DB. |
-| `ingest.py` | Offline ingestion: `docs/*.txt` → chunks → Chroma vector store |
-| `retrieval.py` | Retrieval interface + Chroma / Bedrock Knowledge Base implementations |
-| `providers.py` | LLM interface + Ollama / Bedrock implementations (adding a provider = one subclass) |
-| `api.py` | FastAPI service: `POST /ask`, `GET /health`, per-query latency logging |
-| `app.py` | Streamlit chat with history, sources and latency per answer |
-| `retrieve_test.py` | Debug tool: see raw retrieval output for any question |
+```
+app/
+  api.py         thin HTTP layer over the service
+  service.py     the RAG orchestration (reused by API, UI, eval)
+  retrieval.py   vector-search backends (Chroma / Bedrock KB)
+  providers.py   generation backends (Ollama / Bedrock)
+  ingestion.py   builds the vector store from docs/
+  config.py      environment-driven settings
+streamlit_app.py chat UI
+evaluate.py      offline quality evaluation
+tests/           unit tests
+```
 
-## Quickstart (fully local — no cloud account needed)
+Two paths, deliberately decoupled:
+
+- **Ingestion** (`app/ingestion.py`) — offline batch. Documents are chunked,
+  embedded, and written to the vector store. Triggered by corpus changes, not
+  by the service lifecycle.
+- **Query** (`app/service.py` behind `app/api.py`) — online, stateless.
+  Retrieves the nearest chunks and generates a grounded answer. Reads only;
+  scales horizontally.
+
+Nothing above the integration layer names a concrete backend — the service
+depends on the `Retrieval` and `LLMProvider` interfaces, so local and cloud
+differ by configuration alone.
+
+## Running
+
+Prerequisites: Python 3.11+, and [Ollama](https://ollama.com) with a pulled
+model (`ollama pull llama3.2:3b`) for local generation.
 
 ```bash
 pip install -r requirements.txt
-# install Ollama (ollama.com), then:
-ollama pull llama3.2:3b
 
-python ingest.py                 # build the vector store from docs/
-uvicorn api:app --port 8000      # terminal 1 — backend
-streamlit run app.py             # terminal 2 — chat UI
+# 1. add documents to docs/  (.pdf or .txt)
+# 2. build the vector store
+python -m app.ingestion
+
+# 3. run the service and UI (separate processes)
+uvicorn app.api:app --port 8000
+streamlit run streamlit_app.py
 ```
 
-## Switching to AWS
+Container alternative: `docker compose up`.
 
-Same code, different config in `.env`:
+## Configuration
 
-```
-LLM_PROVIDER=bedrock         # generation via Amazon Bedrock (Nova / Claude)
-RETRIEVAL_BACKEND=kb         # retrieval via a Bedrock Knowledge Base
-KB_ID=<your knowledge base id>
-```
+Copy `.env.example` to `.env`. Backends are selected by environment variable:
 
-## Design decisions
+| Variable | Default | Options |
+|---|---|---|
+| `LLM_PROVIDER` | `ollama` | `ollama`, `bedrock` |
+| `RETRIEVAL_BACKEND` | `chroma` | `chroma`, `kb` |
+| `OLLAMA_MODEL` | `llama3.2:3b` | any local Ollama model |
+| `KB_ID` / `CHAT_MODEL_ID` | — | required for the AWS backends |
 
-- **Grounding with explicit refusal** — the prompt forbids answering outside the
-  retrieved context and requires a refusal when the context doesn't contain the
-  answer. Verified by testing out-of-corpus questions.
-- **Factory pattern for models and retrieval** — dependency inversion keeps the
-  API layer ignorant of which backend serves it; local dev and cloud prod are a
-  config flip apart.
-- **Offline ingestion vs online query path** — indexing is a batch job
-  (`ingest.py`), the query path stays latency-bound (~seconds). They fail and
-  scale independently.
-- **Cosine similarity space** in Chroma so retrieval scores are interpretable
-  (1.0 = identical meaning).
-- **Rate-limit hardening** — developed against near-zero Bedrock quotas on a fresh
-  AWS account: exponential backoff, request pacing, and disabling SDK retry
-  amplification on the ingestion path.
-- **No secrets in code** — configuration via `.env` (gitignored); `.env.example`
-  documents required variables.
-- **Public documents only** (CMS/insurance-domain reference material, no PHI).
-  Production PHI handling would start with Bedrock's HIPAA eligibility (BAA),
-  encryption and access control on the vector store, and redaction before indexing.
+Switching to AWS is configuration only — no code changes.
 
-## Monitoring
+## Evaluation
 
-The API logs retrieval count and end-to-end latency per query. On the AWS
-backends, Bedrock publishes invocation metrics (latency, token counts, errors)
-to CloudWatch automatically.
+`evaluate.py` measures retrieval and generation separately against a fixed
+question set (`eval_set.json`): retrieval hit-rate, answer faithfulness, a
+refusal probe for out-of-corpus questions, and median latency. The bundled
+question set targets the author's healthcare corpus; a new corpus needs a
+matching set.
 
----
-**Sai Deepak S V** · Hyderabad · saideepak.2003@gmail.com
+## Testing
+
+`pytest tests/` — unit coverage for chunking and the backend factories. CI runs
+on every push (`.github/workflows/ci.yml`).
+
+## Design notes
+
+- **Grounding with explicit refusal** — the prompt constrains answers to
+  retrieved context; the refusal probe verifies it.
+- **Factory pattern** — providers and retrieval backends behind interfaces;
+  adding one is a single subclass, switching one is an env var.
+- **Ingestion/query separation** — batch indexing vs. stateless serving, so
+  redeploys are fast and re-indexing is independent of uptime.
+- **Cosine-space store** so surfaced similarity scores are interpretable.
+- **No secrets in source** — configuration via gitignored `.env`.
+- **Public documents only** in any shared corpus; a PHI deployment would add
+  BAA-covered infrastructure (Bedrock), encryption and access control on the
+  store, and redaction before indexing.
+
+## Limitations
+
+- Small local models follow the refusal instruction less reliably than hosted
+  models; the eval refusal probe makes this measurable.
+- Retrieval is dense-vector only; hybrid search and a reranker would improve
+  precision on exact identifiers (e.g. codes).
+- Chunking is structure-agnostic; heading-aware chunking would raise hit-rate.
+
+

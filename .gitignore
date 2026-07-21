@@ -9,13 +9,15 @@ venv/
 *.pem
 .aws/
 
-# Local docs corpus (public PDFs/text — keep the repo light; list sources in README instead)
-docs/*
-!docs/README.md
-
-# Local embeddings cache / vector store
-docs_index.json
+# Local corpus and generated vector store (add your own docs to docs/)
+docs/
 chroma_db/
+
+# pytest
+.pytest_cache/
+
+# generated eval output (regenerate with: python evaluate.py)
+eval_results.md
 
 # OS / editor noise
 .DS_Store

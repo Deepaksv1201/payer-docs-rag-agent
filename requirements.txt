@@ -9,7 +9,11 @@ numpy>=1.26
 # retrieval
 chromadb>=0.5
 fastembed>=0.3
+pypdf>=4.2              # PDF ingestion
 langchain-aws>=0.2      # Bedrock Knowledge Base retriever (kb backend)
+
+# dev
+pytest>=8.0
 
 # generation
 ollama>=0.3             # local provider

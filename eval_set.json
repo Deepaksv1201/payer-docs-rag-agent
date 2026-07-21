@@ -1,0 +1,42 @@
+[
+  {
+    "question": "What is prior authorization and why do insurers require it?",
+    "expected_source": "prior_authorization.txt",
+    "must_contain": ["prior authorization"]
+  },
+  {
+    "question": "What information does an Explanation of Benefits contain?",
+    "expected_source": "explanation_of_benefits.txt",
+    "must_contain": ["patient"]
+  },
+  {
+    "question": "What are ICD and CPT codes used for?",
+    "expected_source": "medical_coding.txt",
+    "must_contain": ["cpt"]
+  },
+  {
+    "question": "What is a deductible in health insurance?",
+    "expected_source": "deductible.txt",
+    "must_contain": ["deductible"]
+  },
+  {
+    "question": "What is a copayment?",
+    "expected_source": "copayment.txt",
+    "must_contain": ["copay"]
+  },
+  {
+    "question": "What does step therapy require of a patient?",
+    "expected_source": "prior_authorization.txt",
+    "must_contain": ["step therapy"]
+  },
+  {
+    "question": "What is revenue cycle management in healthcare?",
+    "expected_source": "revenue_cycle_management.txt",
+    "must_contain": ["revenue"]
+  },
+  {
+    "question": "How does the medical billing process submit claims to payers?",
+    "expected_source": "medical_billing.txt",
+    "must_contain": ["claim"]
+  }
+]
