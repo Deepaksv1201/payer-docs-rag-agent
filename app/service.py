@@ -1,10 +1,4 @@
-"""The RAG business logic — the heart of the application.
-
-Turns a question into a grounded answer: retrieve the most relevant chunks,
-wrap them in a prompt that forbids answering outside that context, and generate
-the reply. Framework-independent, so the API, the UI, and the evaluation
-harness all reuse the same logic instead of duplicating it.
-"""
+"""RAG orchestration — retrieve, ground, generate. Reused by API, UI and eval."""
 import logging
 import time
 from dataclasses import dataclass
@@ -14,8 +8,7 @@ from app.retrieval import Chunk, Retrieval, get_retrieval
 
 log = logging.getLogger("docq")
 
-# The grounding contract: answer only from retrieved context, refuse otherwise.
-# This is what keeps answers traceable to documents instead of invented.
+# Grounding contract: answer only from retrieved context, else refuse.
 PROMPT = """You are a precise assistant answering questions from a document set.
 Using ONLY the context below, write a clear, complete answer of 2-4 sentences.
 Do not copy the context verbatim — explain it. If the context does not contain
@@ -31,8 +24,6 @@ Answer:"""
 
 @dataclass
 class Answer:
-    """A generated answer plus the evidence and metadata behind it."""
-
     text: str
     sources: list[Chunk]
     latency_seconds: float
@@ -40,8 +31,7 @@ class Answer:
 
 
 class RagService:
-    """Orchestrates retrieval and generation. Backends are injected so the
-    service can be tested or reconfigured without touching this logic."""
+    """Backends are injected so the flow can be tested or reconfigured freely."""
 
     def __init__(
         self,
@@ -60,9 +50,4 @@ class RagService:
         )
         elapsed = time.perf_counter() - start
         log.info("answered | chunks=%d | latency=%.2fs", len(chunks), elapsed)
-        return Answer(
-            text=text,
-            sources=chunks,
-            latency_seconds=round(elapsed, 2),
-            provider=self.provider.name,
-        )
+        return Answer(text, chunks, round(elapsed, 2), self.provider.name)

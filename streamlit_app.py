@@ -1,8 +1,6 @@
-"""Chat UI for the RAG service.
+"""Chat UI — sends questions to the API and renders answers with sources.
 
-A thin presentation layer: it sends questions to the API and renders the
-answer, its sources, and per-answer latency. Run the API first, then:
-    streamlit run streamlit_app.py
+Run the API first, then: streamlit run streamlit_app.py
 """
 import os
 
@@ -12,11 +10,10 @@ import streamlit as st
 API_URL = os.environ.get("API_URL", "http://localhost:8000/ask")
 
 st.set_page_config(page_title="DocQ — Document Q&A", page_icon="📄")
-
 st.title("DocQ — Document Q&A")
 st.caption(
-    "Grounded answers over your document corpus. Every reply cites the chunks "
-    "it used and refuses when the answer isn't in the documents."
+    "Grounded answers over your document corpus, with cited sources and a "
+    "refusal when the answer isn't in the documents."
 )
 
 if "history" not in st.session_state:

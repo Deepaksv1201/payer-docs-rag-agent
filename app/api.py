@@ -1,8 +1,4 @@
-"""HTTP interface for the RAG service — a thin FastAPI layer.
-
-Holds no business logic: it validates requests, delegates to RagService, and
-shapes the JSON response. Run with:  uvicorn app.api:app --port 8000
-"""
+"""HTTP layer over RagService. Run: uvicorn app.api:app --port 8000"""
 import logging
 
 from fastapi import FastAPI
@@ -29,7 +25,7 @@ class AskResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    """Report liveness and whether the retrieval store answers a probe query."""
+    """Report liveness and whether retrieval answers a probe query."""
     try:
         service.retrieval.search("healthcheck", k=1)
         ready = True
@@ -44,7 +40,7 @@ def health():
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
-    """Answer a question from the document corpus, with sources and latency."""
+    """Answer a question from the corpus, with sources and latency."""
     result = service.answer(req.question)
     return AskResponse(
         answer=result.text,
